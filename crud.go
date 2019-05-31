@@ -269,6 +269,9 @@ func (crud *Crud) SaveWithPrimaryTx(tx *godb.SqlTx, m Crudable) (err error) {
 }
 
 func (crud *Crud) primaryExists(input interface{}) (ok bool) {
+	if input == nil {
+		return
+	}
 	switch input.(type) {
 	case *int:
 		x := *input.(*int)
