@@ -9,6 +9,16 @@ import (
 	"github.com/dimonrus/godb"
 )
 
+const (
+	System int = 10
+	Logic int = 20
+)
+
+type CrudError struct{
+	code int
+	error
+}
+s
 type Crudable interface {
 	Columns() (names []string, attributeLinks []interface{})
 	Primarykey() (name string, attributeLink interface{})
@@ -45,7 +55,8 @@ func (crud *Crud) getScans(m Crudable) (values []interface{}) {
 }
 
 func (crud *Crud) parse(rows *sql.Rows, m Crudable) (err error) {
-	err = rows.Scan(crud.getScans(m)...)
+	errScan := rows.Scan(crud.getScans(m)...)
+	err = CrudError{System, errScan}
 	return
 }
 
@@ -54,8 +65,9 @@ func (crud *Crud) Load(dbo *godb.DBO, m Crudable) (find bool, err error) {
 	_, id := m.Primarykey()
 	if crud.primaryExists(id) {
 		var iterator *sql.Rows
-		iterator, err = dbo.Query(crud.GetLoadQuery(m), id)
-		if err != nil {
+		iterator, errQuery := dbo.Query(crud.GetLoadQuery(m), id)
+		if errQuery != nil {
+			err = CrudError{System, errQuery}
 			return
 		}
 		defer iterator.Close()
@@ -70,7 +82,7 @@ func (crud *Crud) Load(dbo *godb.DBO, m Crudable) (find bool, err error) {
 		}
 		return
 	} else {
-		err = errors.New("no primary key specified, nothing for load")
+		err = CrudError{Logic, errors.New("no primary key specified, nothing for load")}
 	}
 	return
 }
@@ -80,8 +92,9 @@ func (crud *Crud) LoadTx(tx *godb.SqlTx, m Crudable) (find bool, err error) {
 	_, id := m.Primarykey()
 	if crud.primaryExists(id) {
 		var iterator *sql.Rows
-		iterator, err = tx.Query(crud.GetLoadQuery(m), id)
-		if err != nil {
+		iterator, errQuery := tx.Query(crud.GetLoadQuery(m), id)
+		if errQuery != nil {
+			err = CrudError{System, errQuery}
 			return
 		}
 		defer iterator.Close()
@@ -96,7 +109,7 @@ func (crud *Crud) LoadTx(tx *godb.SqlTx, m Crudable) (find bool, err error) {
 		}
 		return
 	} else {
-		err = errors.New("no primary key specified, nothing for load")
+		err = CrudError{Logic, errors.New("no primary key specified, nothing for load")}
 	}
 	return
 }
@@ -111,14 +124,14 @@ func (crud *Crud) getDeleteQuery(m Crudable) string {
 func (crud *Crud) Delete(dbo *godb.DBO, m Crudable) error {
 	_, id := m.Primarykey()
 	_, err := dbo.Exec(crud.getDeleteQuery(m), id)
-	return err
+	return CrudError{System, err}
 }
 
 //Delete with transactions
 func (crud *Crud) DeleteTx(tx *godb.SqlTx, m Crudable) error {
 	_, id := m.Primarykey()
 	_, err := tx.Exec(crud.getDeleteQuery(m), id)
-	return err
+	return CrudError{System, err}
 }
 
 // SQL upsert Query
@@ -196,15 +209,21 @@ func (crud *Crud) getUpdateQueryWithPrimary(m Crudable) (query string, insertion
 //Model saver method
 func (crud *Crud) Save(dbo *godb.DBO, m Crudable) (err error) {
 	_, id := m.Primarykey()
-	err = m.Validate()
-	if err == nil {
+	vErr := m.Validate()
+	if vErr == nil {
+		var qErr error
 		if crud.primaryExists(id) {
 			query, insertions := crud.getUpdateQuery(m)
-			err = dbo.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
+			qErr = dbo.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
 		} else {
 			query, insertions := crud.getSaveQuery(m)
-			err = dbo.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
+			qErr = dbo.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
 		}
+		if qErr != nil {
+			err = CrudError{System, qErr}
+		}
+	} else {
+		err = CrudError{Logic, vErr}
 	}
 	return
 }
@@ -212,16 +231,21 @@ func (crud *Crud) Save(dbo *godb.DBO, m Crudable) (err error) {
 //Model saver method with transactions
 func (crud *Crud) SaveTx(tx *godb.SqlTx, m Crudable) (err error) {
 	_, id := m.Primarykey()
-
-	err = m.Validate()
-	if err == nil {
+	vErr := m.Validate()
+	if vErr == nil {
+		var qErr error
 		if crud.primaryExists(id) {
 			query, insertions := crud.getUpdateQuery(m)
-			err = tx.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
+			qErr = tx.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
 		} else {
 			query, insertions := crud.getSaveQuery(m)
-			err = tx.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
+			qErr = tx.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
 		}
+		if qErr != nil {
+			err = CrudError{System, qErr}
+		}
+	} else {
+		err = CrudError{Logic, vErr}
 	}
 	return
 }
@@ -229,20 +253,26 @@ func (crud *Crud) SaveTx(tx *godb.SqlTx, m Crudable) (err error) {
 //Model saver method
 func (crud *Crud) SaveWithPrimary(dbo *godb.DBO, m Crudable) (err error) {
 	_, id := m.Primarykey()
-	err = m.Validate()
-	if err == nil {
+	vErr := m.Validate()
+	if vErr == nil {
 		if crud.primaryExists(id) {
 			ok, err := crud.Load(dbo, m)
 			if err == nil {
+				var qErr error
 				if ok {
 					query, insertions := crud.getUpdateQueryWithPrimary(m)
-					err = dbo.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
+					qErr = dbo.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
 				} else {
 					query, insertions := crud.getSaveQueryWithPrimary(m)
-					err = dbo.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
+					qErr = dbo.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
+				}
+				if qErr != nil {
+					err = CrudError{System, qErr}
 				}
 			}
 		}
+	} else {
+		err = CrudError{Logic, vErr}
 	}
 	return
 }
@@ -250,20 +280,26 @@ func (crud *Crud) SaveWithPrimary(dbo *godb.DBO, m Crudable) (err error) {
 //Model saver method
 func (crud *Crud) SaveWithPrimaryTx(tx *godb.SqlTx, m Crudable) (err error) {
 	_, id := m.Primarykey()
-	err = m.Validate()
-	if err == nil {
+	vErr := m.Validate()
+	if vErr == nil {
 		if crud.primaryExists(id) {
 			ok, err := crud.LoadTx(tx, m)
 			if err == nil {
+				var qErr error
 				if ok {
 					query, insertions := crud.getUpdateQueryWithPrimary(m)
-					err = tx.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
+					qErr = tx.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
 				} else {
 					query, insertions := crud.getSaveQueryWithPrimary(m)
-					err = tx.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
+					qErr = tx.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
+				}
+				if qErr != nil {
+					err = CrudError{System, qErr}
 				}
 			}
 		}
+	} else {
+		err = CrudError{Logic, vErr}
 	}
 	return
 }
