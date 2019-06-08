@@ -11,14 +11,14 @@ import (
 
 const (
 	System int = 10
-	Logic int = 20
+	Logic  int = 20
 )
 
-type CrudError struct{
+type CrudError struct {
 	code int
 	error
 }
-s
+
 type Crudable interface {
 	Columns() (names []string, attributeLinks []interface{})
 	Primarykey() (name string, attributeLink interface{})
