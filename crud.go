@@ -7,16 +7,6 @@ import (
 	"strings"
 )
 
-const (
-	System int = 10
-	Logic  int = 20
-)
-
-type CrudError struct {
-	code int
-	error
-}
-
 //ActiveRecord analog
 type Crudable interface {
 	Columns() (names []string, attributeLinks []interface{})
@@ -36,14 +26,14 @@ type Crud struct {
 }
 
 // SQL load Query
-func (crud *Crud) GetLoadQuery(m Crudable) string {
-	columns := crud.getColumnNames(m)
+func GetLoadQuery(m Crudable) string {
+	columns := getColumnNames(m)
 	primary, _ := m.Primarykey()
 	table := m.TableName()
 	return "SELECT " + columns + " FROM " + table + " WHERE " + primary + " = $1;"
 }
 
-func (crud *Crud) getColumnNames(m Crudable) string {
+func getColumnNames(m Crudable) string {
 	names := make([]string, 0)
 	primary, _ := m.Primarykey()
 	names = append(names, primary)
@@ -52,7 +42,7 @@ func (crud *Crud) getColumnNames(m Crudable) string {
 	return strings.Join(names, ", ")
 }
 
-func (crud *Crud) getScans(m Crudable) (values []interface{}) {
+func getScans(m Crudable) (values []interface{}) {
 	_, attributeLink := m.Primarykey()
 	values = append(values, attributeLink)
 	_, attributeLinks := m.Columns()
@@ -60,20 +50,20 @@ func (crud *Crud) getScans(m Crudable) (values []interface{}) {
 	return
 }
 
-func (crud *Crud) parse(rows *sql.Rows, m Crudable) (err error) {
-	errScan := rows.Scan(crud.getScans(m)...)
-	err = CrudError{System, errScan}
+func parse(rows *sql.Rows, m Crudable) (err error) {
+	errScan := rows.Scan(getScans(m)...)
+	err = errScan
 	return
 }
 
 // Load model
-func (crud *Crud) Load(dbo Queryer, m Crudable) (find bool, err error) {
+func Load(dbo Queryer, m Crudable) (find bool, err error) {
 	_, id := m.Primarykey()
-	if crud.primaryExists(id) {
+	if primaryExists(id) {
 		var iterator *sql.Rows
-		iterator, errQuery := dbo.Query(crud.GetLoadQuery(m), id)
+		iterator, errQuery := dbo.Query(GetLoadQuery(m), id)
 		if errQuery != nil {
-			err = CrudError{System, errQuery}
+			err = errQuery
 			return
 		}
 		defer iterator.Close()
@@ -82,32 +72,32 @@ func (crud *Crud) Load(dbo Queryer, m Crudable) (find bool, err error) {
 			return
 		}
 
-		err = crud.parse(iterator, m)
+		err = parse(iterator, m)
 		if err == nil {
 			find = true
 		}
 		return
 	} else {
-		err = CrudError{Logic, errors.New("no primary key specified, nothing for load")}
+		err = errors.New("no primary key specified, nothing for load")
 	}
 	return
 }
 
 // SQL delete Query
-func (crud *Crud) getDeleteQuery(m Crudable) string {
+func getDeleteQuery(m Crudable) string {
 	name, _ := m.Primarykey()
 	return "DELETE FROM " + m.TableName() + " WHERE " + name + " = $1;"
 }
 
 // Delete method
-func (crud *Crud) Delete(dbo Queryer, m Crudable) error {
+func Delete(dbo Queryer, m Crudable) error {
 	_, id := m.Primarykey()
-	_, err := dbo.Exec(crud.getDeleteQuery(m), id)
-	return CrudError{System, err}
+	_, err := dbo.Exec(getDeleteQuery(m), id)
+	return err
 }
 
 // SQL upsert Query
-func (crud *Crud) getUpdateQuery(m Crudable) (query string, scans []interface{}) {
+func getUpdateQuery(m Crudable) (query string, scans []interface{}) {
 	idname, _ := m.Primarykey()
 	cols, _ := m.Columns()
 	updateCols := ""
@@ -120,12 +110,12 @@ func (crud *Crud) getUpdateQuery(m Crudable) (query string, scans []interface{})
 
 	query = `UPDATE ` + m.TableName() + ` SET ` + updateCols + `
 		WHERE ` + idname + ` = $1
-		RETURNING ` + crud.getColumnNames(m) + `;`
-	scans = crud.getScans(m)
+		RETURNING ` + getColumnNames(m) + `;`
+	scans = getScans(m)
 	return
 }
 
-func (crud *Crud) getSaveQuery(m Crudable) (query string, scans []interface{}) {
+func getSaveQuery(m Crudable) (query string, scans []interface{}) {
 	names, scans := m.Columns()
 	columns := strings.Join(names, ",")
 	params := ""
@@ -137,14 +127,14 @@ func (crud *Crud) getSaveQuery(m Crudable) (query string, scans []interface{}) {
 	}
 
 	query = `INSERT INTO ` + m.TableName() + ` (` + columns + `) VALUES (` + params + `)
-	RETURNING ` + crud.getColumnNames(m) + `;`
+	RETURNING ` + getColumnNames(m) + `;`
 
 	return
 }
 
-func (crud *Crud) getSaveQueryWithPrimary(m Crudable) (query string, insertions []interface{}) {
-	columns := crud.getColumnNames(m)
-	insertions = crud.getScans(m)
+func getSaveQueryWithPrimary(m Crudable) (query string, insertions []interface{}) {
+	columns := getColumnNames(m)
+	insertions = getScans(m)
 	params := ""
 	for i, _ := range insertions {
 		params = params + " $" + strconv.Itoa(i+1)
@@ -158,7 +148,7 @@ func (crud *Crud) getSaveQueryWithPrimary(m Crudable) (query string, insertions 
 	return
 }
 
-func (crud *Crud) getUpdateQueryWithPrimary(m Crudable) (query string, insertions []interface{}) {
+func getUpdateQueryWithPrimary(m Crudable) (query string, insertions []interface{}) {
 	idname, primary := m.Primarykey()
 	cols, _ := m.Columns()
 	updateCols := " idname  = $" + strconv.Itoa(2)
@@ -171,63 +161,63 @@ func (crud *Crud) getUpdateQueryWithPrimary(m Crudable) (query string, insertion
 
 	query = `UPDATE ` + m.TableName() + ` SET ` + updateCols + `
 		WHERE ` + idname + ` = $1
-		RETURNING ` + crud.getColumnNames(m) + `;`
+		RETURNING ` + getColumnNames(m) + `;`
 
 	insertions = make([]interface{}, 0)
-	insertions = append(insertions, primary, crud.getScans(m))
+	insertions = append(insertions, primary, getScans(m))
 	return
 }
 
 //Model saver method
-func (crud *Crud) Save(dbo Queryer, m Crudable) (err error) {
+func Save(dbo Queryer, m Crudable) (err error) {
 	_, id := m.Primarykey()
 	vErr := m.Validate()
 	if vErr == nil {
 		var qErr error
-		if crud.primaryExists(id) {
-			query, insertions := crud.getUpdateQuery(m)
-			qErr = dbo.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
+		if primaryExists(id) {
+			query, insertions := getUpdateQuery(m)
+			qErr = dbo.QueryRow(query, insertions...).Scan(getScans(m)...)
 		} else {
-			query, insertions := crud.getSaveQuery(m)
-			qErr = dbo.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
+			query, insertions := getSaveQuery(m)
+			qErr = dbo.QueryRow(query, insertions...).Scan(getScans(m)...)
 		}
 		if qErr != nil {
-			err = CrudError{System, qErr}
+			err = qErr
 		}
 	} else {
-		err = CrudError{Logic, vErr}
+		err = vErr
 	}
 	return
 }
 
 //Model saver method
-func (crud *Crud) SaveWithPrimary(dbo Queryer, m Crudable) (err error) {
+func SaveWithPrimary(dbo Queryer, m Crudable) (err error) {
 	_, id := m.Primarykey()
 	vErr := m.Validate()
 	if vErr == nil {
-		if crud.primaryExists(id) {
-			ok, err := crud.Load(dbo, m)
+		if primaryExists(id) {
+			ok, err := Load(dbo, m)
 			if err == nil {
 				var qErr error
 				if ok {
-					query, insertions := crud.getUpdateQueryWithPrimary(m)
-					qErr = dbo.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
+					query, insertions := getUpdateQueryWithPrimary(m)
+					qErr = dbo.QueryRow(query, insertions...).Scan(getScans(m)...)
 				} else {
-					query, insertions := crud.getSaveQueryWithPrimary(m)
-					qErr = dbo.QueryRow(query, insertions...).Scan(crud.getScans(m)...)
+					query, insertions := getSaveQueryWithPrimary(m)
+					qErr = dbo.QueryRow(query, insertions...).Scan(getScans(m)...)
 				}
 				if qErr != nil {
-					err = CrudError{System, qErr}
+					err = qErr
 				}
 			}
 		}
 	} else {
-		err = CrudError{Logic, vErr}
+		err = vErr
 	}
 	return
 }
 
-func (crud *Crud) primaryExists(input interface{}) (ok bool) {
+func primaryExists(input interface{}) (ok bool) {
 	if input == nil {
 		return
 	}
