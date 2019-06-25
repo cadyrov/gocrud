@@ -16,7 +16,7 @@ type Crudable interface {
 }
 
 //SQL tx and dbo
-type Queryer interface {
+type SQLer interface {
 	Query(query string, args ...interface{}) (*sql.Rows, error)
 	QueryRow(query string, args ...interface{}) *sql.Row
 	Exec(query string, args ...interface{}) (sql.Result, error)
@@ -57,7 +57,7 @@ func parse(rows *sql.Rows, m Crudable) (err error) {
 }
 
 // Load model
-func Load(dbo Queryer, m Crudable) (find bool, err error) {
+func Load(dbo SQLer, m Crudable) (find bool, err error) {
 	_, id := m.Primarykey()
 	if primaryExists(id) {
 		var iterator *sql.Rows
@@ -90,7 +90,7 @@ func getDeleteQuery(m Crudable) string {
 }
 
 // Delete method
-func Delete(dbo Queryer, m Crudable) error {
+func Delete(dbo SQLer, m Crudable) error {
 	_, id := m.Primarykey()
 	_, err := dbo.Exec(getDeleteQuery(m), id)
 	return err
@@ -169,7 +169,7 @@ func getUpdateQueryWithPrimary(m Crudable) (query string, insertions []interface
 }
 
 //Model saver method
-func Save(dbo Queryer, m Crudable) (err error) {
+func Save(dbo SQLer, m Crudable) (err error) {
 	_, id := m.Primarykey()
 	vErr := m.Validate()
 	if vErr == nil {
@@ -191,7 +191,7 @@ func Save(dbo Queryer, m Crudable) (err error) {
 }
 
 //Model saver method
-func SaveWithPrimary(dbo Queryer, m Crudable) (err error) {
+func SaveWithPrimary(dbo SQLer, m Crudable) (err error) {
 	_, id := m.Primarykey()
 	vErr := m.Validate()
 	if vErr == nil {
