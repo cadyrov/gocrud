@@ -194,7 +194,15 @@ func Save(ds DSLer, m Cruder) (err error) {
 	return
 }
 
-func isUpdate(m Cruder) bool {
+func isUpdate(m Cruder) (ok bool) {
+	_, attrLink := m.Sequences()
+	for _, value := range attrLink {
+		err := validation.Validate(value, validation.Required)
+		if err != nil {
+			ok = false
+			return
+		}
+	}
 	return true
 }
 
