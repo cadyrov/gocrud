@@ -145,7 +145,8 @@ func Delete(dbo DSLer, m Cruder) error {
 func getUpdateQuery(m Cruder) (query string, insertions []interface{}) {
 	_, attr := m.PrimaryKey()
 	insertions = append(insertions, attr...)
-	cols, insertions := insertionColumns(m)
+	cols, ins := insertionColumns(m)
+	insertions = append(insertions, ins...)
 	sqlPrm, iStrt := getSqlPrimary(m, 0)
 	updateCols := ""
 	for i, colname := range cols {
