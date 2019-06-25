@@ -8,7 +8,7 @@ import (
 )
 
 //ActiveRecord analog
-type Crudable interface {
+type Cruder interface {
 	Columns() (names []string, attributeLinks []interface{})
 	Primarykey() (name string, attributeLink interface{})
 	TableName() string
@@ -26,14 +26,14 @@ type Crud struct {
 }
 
 // SQL load Query
-func GetLoadQuery(m Crudable) string {
+func GetLoadQuery(m Cruder) string {
 	columns := getColumnNames(m)
 	primary, _ := m.Primarykey()
 	table := m.TableName()
 	return "SELECT " + columns + " FROM " + table + " WHERE " + primary + " = $1;"
 }
 
-func getColumnNames(m Crudable) string {
+func getColumnNames(m Cruder) string {
 	names := make([]string, 0)
 	primary, _ := m.Primarykey()
 	names = append(names, primary)
@@ -42,7 +42,7 @@ func getColumnNames(m Crudable) string {
 	return strings.Join(names, ", ")
 }
 
-func getScans(m Crudable) (values []interface{}) {
+func getScans(m Cruder) (values []interface{}) {
 	_, attributeLink := m.Primarykey()
 	values = append(values, attributeLink)
 	_, attributeLinks := m.Columns()
@@ -50,14 +50,14 @@ func getScans(m Crudable) (values []interface{}) {
 	return
 }
 
-func parse(rows *sql.Rows, m Crudable) (err error) {
+func parse(rows *sql.Rows, m Cruder) (err error) {
 	errScan := rows.Scan(getScans(m)...)
 	err = errScan
 	return
 }
 
 // Load model
-func Load(dbo SQLer, m Crudable) (find bool, err error) {
+func Load(dbo DSLer, m Cruder) (find bool, err error) {
 	_, id := m.Primarykey()
 	if primaryExists(id) {
 		var iterator *sql.Rows
@@ -84,20 +84,20 @@ func Load(dbo SQLer, m Crudable) (find bool, err error) {
 }
 
 // SQL delete Query
-func getDeleteQuery(m Crudable) string {
+func getDeleteQuery(m Cruder) string {
 	name, _ := m.Primarykey()
 	return "DELETE FROM " + m.TableName() + " WHERE " + name + " = $1;"
 }
 
 // Delete method
-func Delete(dbo SQLer, m Crudable) error {
+func Delete(dbo DSLer, m Cruder) error {
 	_, id := m.Primarykey()
 	_, err := dbo.Exec(getDeleteQuery(m), id)
 	return err
 }
 
 // SQL upsert Query
-func getUpdateQuery(m Crudable) (query string, scans []interface{}) {
+func getUpdateQuery(m Cruder) (query string, scans []interface{}) {
 	idname, _ := m.Primarykey()
 	cols, _ := m.Columns()
 	updateCols := ""
@@ -115,7 +115,7 @@ func getUpdateQuery(m Crudable) (query string, scans []interface{}) {
 	return
 }
 
-func getSaveQuery(m Crudable) (query string, scans []interface{}) {
+func getSaveQuery(m Cruder) (query string, scans []interface{}) {
 	names, scans := m.Columns()
 	columns := strings.Join(names, ",")
 	params := ""
@@ -132,7 +132,7 @@ func getSaveQuery(m Crudable) (query string, scans []interface{}) {
 	return
 }
 
-func getSaveQueryWithPrimary(m Crudable) (query string, insertions []interface{}) {
+func getSaveQueryWithPrimary(m Cruder) (query string, insertions []interface{}) {
 	columns := getColumnNames(m)
 	insertions = getScans(m)
 	params := ""
@@ -148,7 +148,7 @@ func getSaveQueryWithPrimary(m Crudable) (query string, insertions []interface{}
 	return
 }
 
-func getUpdateQueryWithPrimary(m Crudable) (query string, insertions []interface{}) {
+func getUpdateQueryWithPrimary(m Cruder) (query string, insertions []interface{}) {
 	idname, primary := m.Primarykey()
 	cols, _ := m.Columns()
 	updateCols := " idname  = $" + strconv.Itoa(2)
@@ -169,7 +169,7 @@ func getUpdateQueryWithPrimary(m Crudable) (query string, insertions []interface
 }
 
 //Model saver method
-func Save(dbo SQLer, m Crudable) (err error) {
+func Save(dbo DSLer, m Cruder) (err error) {
 	_, id := m.Primarykey()
 	vErr := m.Validate()
 	if vErr == nil {
@@ -191,7 +191,7 @@ func Save(dbo SQLer, m Crudable) (err error) {
 }
 
 //Model saver method
-func SaveWithPrimary(dbo SQLer, m Crudable) (err error) {
+func SaveWithPrimary(dbo DSLer, m Cruder) (err error) {
 	_, id := m.Primarykey()
 	vErr := m.Validate()
 	if vErr == nil {
