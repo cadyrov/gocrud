@@ -3,6 +3,8 @@ package crud
 import (
 	"database/sql"
 	"errors"
+	"fmt"
+	"github.com/cadyrov/govalidation"
 	"strconv"
 	"strings"
 )
@@ -10,7 +12,8 @@ import (
 //ActiveRecord analog
 type Cruder interface {
 	Columns() (names []string, attributeLinks []interface{})
-	Primarykey() (name string, attributeLink interface{})
+	Primarykey() (names []string, attributeLinks []interface{})
+	Sequences() (names []string, attributeLinks []interface{})
 	TableName() string
 	Validate() (err error)
 }
@@ -27,22 +30,37 @@ type Crud struct {
 
 // SQL load Query
 func GetLoadQuery(m Cruder) string {
-	columns := getColumnNames(m)
-	primary, _ := m.Primarykey()
+	columns := columnNames(m)
 	table := m.TableName()
-	return "SELECT " + columns + " FROM " + table + " WHERE " + primary + " = $1;"
+	return "SELECT " + columns + " FROM " + table + " WHERE " + getSqlPrimary(m) + " ;"
 }
 
-func getColumnNames(m Cruder) string {
+func getSqlPrimary(m Cruder) string {
+	cnt := 0
+	sql := ""
+	nms, _ := m.Primarykey()
+	for key, value := range nms {
+		nm := value
+		cnt++
+		if key == 0 {
+			sql += " " + nm + " = " + fmt.Sprintf("$%v", cnt) + " "
+		} else {
+			sql += " and " + nm + " = " + fmt.Sprintf("$%v", cnt) + " "
+		}
+	}
+	return sql
+}
+
+func columnNames(m Cruder) string {
 	names := make([]string, 0)
 	primary, _ := m.Primarykey()
-	names = append(names, primary)
+	names = append(names, primary...)
 	nms, _ := m.Columns()
 	names = append(names, nms...)
 	return strings.Join(names, ", ")
 }
 
-func getScans(m Cruder) (values []interface{}) {
+func scans(m Cruder) (values []interface{}) {
 	_, attributeLink := m.Primarykey()
 	values = append(values, attributeLink)
 	_, attributeLinks := m.Columns()
@@ -50,18 +68,44 @@ func getScans(m Cruder) (values []interface{}) {
 	return
 }
 
+func insertionColumns(m Cruder) (names []string, attributeLinks []interface{}) {
+	prNames, prLinks := m.Primarykey()
+	for key, value := range prNames {
+		if !inSequense(m, value) {
+			nm := value
+			attrLink := prLinks[key]
+			names = append(names, nm)
+			attributeLinks = append(attributeLinks, attrLink)
+		}
+	}
+	stNames, stLinks := m.Columns()
+	names = append(names, stNames...)
+	attributeLinks = append(attributeLinks, stLinks...)
+	return
+}
+
+func inSequense(m Cruder, name string) bool {
+	names, _ := m.Sequences()
+	for _, value := range names {
+		if value == name {
+			return true
+		}
+	}
+	return false
+}
+
 func parse(rows *sql.Rows, m Cruder) (err error) {
-	errScan := rows.Scan(getScans(m)...)
+	errScan := rows.Scan(scans(m)...)
 	err = errScan
 	return
 }
 
 // Load model
 func Load(dbo DSLer, m Cruder) (find bool, err error) {
-	_, id := m.Primarykey()
-	if primaryExists(id) {
+	_, idlinks := m.Primarykey()
+	if primaryExists(idlinks) {
 		var iterator *sql.Rows
-		iterator, errQuery := dbo.Query(GetLoadQuery(m), id)
+		iterator, errQuery := dbo.Query(GetLoadQuery(m), idlinks...)
 		if errQuery != nil {
 			err = errQuery
 			return
@@ -85,21 +129,19 @@ func Load(dbo DSLer, m Cruder) (find bool, err error) {
 
 // SQL delete Query
 func getDeleteQuery(m Cruder) string {
-	name, _ := m.Primarykey()
-	return "DELETE FROM " + m.TableName() + " WHERE " + name + " = $1;"
+	return "DELETE FROM " + m.TableName() + " WHERE " + getSqlPrimary(m) + " ;"
 }
 
 // Delete method
 func Delete(dbo DSLer, m Cruder) error {
-	_, id := m.Primarykey()
-	_, err := dbo.Exec(getDeleteQuery(m), id)
+	_, idlinks := m.Primarykey()
+	_, err := dbo.Exec(getDeleteQuery(m), idlinks...)
 	return err
 }
 
 // SQL upsert Query
-func getUpdateQuery(m Cruder) (query string, scans []interface{}) {
-	idname, _ := m.Primarykey()
-	cols, _ := m.Columns()
+func getUpdateQuery(m Cruder) (query string, insertions []interface{}) {
+	cols, insertions := insertionColumns(m)
 	updateCols := ""
 	for i, colname := range cols {
 		updateCols = updateCols + " " + colname + " = $" + strconv.Itoa(i+2)
@@ -109,14 +151,13 @@ func getUpdateQuery(m Cruder) (query string, scans []interface{}) {
 	}
 
 	query = `UPDATE ` + m.TableName() + ` SET ` + updateCols + `
-		WHERE ` + idname + ` = $1
-		RETURNING ` + getColumnNames(m) + `;`
-	scans = getScans(m)
+		WHERE ` + getSqlPrimary(m) + ` 
+		RETURNING ` + columnNames(m) + `;`
 	return
 }
 
-func getSaveQuery(m Cruder) (query string, scans []interface{}) {
-	names, scans := m.Columns()
+func getSaveQuery(m Cruder) (query string, insertions []interface{}) {
+	names, insertions := insertionColumns(m)
 	columns := strings.Join(names, ",")
 	params := ""
 	for i, _ := range names {
@@ -127,59 +168,22 @@ func getSaveQuery(m Cruder) (query string, scans []interface{}) {
 	}
 
 	query = `INSERT INTO ` + m.TableName() + ` (` + columns + `) VALUES (` + params + `)
-	RETURNING ` + getColumnNames(m) + `;`
+	RETURNING ` + columnNames(m) + `;`
 
-	return
-}
-
-func getSaveQueryWithPrimary(m Cruder) (query string, insertions []interface{}) {
-	columns := getColumnNames(m)
-	insertions = getScans(m)
-	params := ""
-	for i, _ := range insertions {
-		params = params + " $" + strconv.Itoa(i+1)
-		if i < (len(insertions) - 1) {
-			params = params + ", "
-		}
-	}
-
-	query = `INSERT INTO ` + m.TableName() + ` (` + columns + `) VALUES (` + params + `)
-	RETURNING ` + columns + `;`
-	return
-}
-
-func getUpdateQueryWithPrimary(m Cruder) (query string, insertions []interface{}) {
-	idname, primary := m.Primarykey()
-	cols, _ := m.Columns()
-	updateCols := " idname  = $" + strconv.Itoa(2)
-	for i, colname := range cols {
-		updateCols = updateCols + " " + colname + " = $" + strconv.Itoa(i+3)
-		if i < (len(cols) - 1) {
-			updateCols = updateCols + ", "
-		}
-	}
-
-	query = `UPDATE ` + m.TableName() + ` SET ` + updateCols + `
-		WHERE ` + idname + ` = $1
-		RETURNING ` + getColumnNames(m) + `;`
-
-	insertions = make([]interface{}, 0)
-	insertions = append(insertions, primary, getScans(m))
 	return
 }
 
 //Model saver method
-func Save(dbo DSLer, m Cruder) (err error) {
-	_, id := m.Primarykey()
+func Save(ds DSLer, m Cruder) (err error) {
 	vErr := m.Validate()
 	if vErr == nil {
 		var qErr error
-		if primaryExists(id) {
+		if isUpdate(m) {
 			query, insertions := getUpdateQuery(m)
-			qErr = dbo.QueryRow(query, insertions...).Scan(getScans(m)...)
+			qErr = ds.QueryRow(query, insertions...).Scan(scans(m)...)
 		} else {
 			query, insertions := getSaveQuery(m)
-			qErr = dbo.QueryRow(query, insertions...).Scan(getScans(m)...)
+			qErr = ds.QueryRow(query, insertions...).Scan(scans(m)...)
 		}
 		if qErr != nil {
 			err = qErr
@@ -190,52 +194,20 @@ func Save(dbo DSLer, m Cruder) (err error) {
 	return
 }
 
-//Model saver method
-func SaveWithPrimary(dbo DSLer, m Cruder) (err error) {
-	_, id := m.Primarykey()
-	vErr := m.Validate()
-	if vErr == nil {
-		if primaryExists(id) {
-			ok, err := Load(dbo, m)
-			if err == nil {
-				var qErr error
-				if ok {
-					query, insertions := getUpdateQueryWithPrimary(m)
-					qErr = dbo.QueryRow(query, insertions...).Scan(getScans(m)...)
-				} else {
-					query, insertions := getSaveQueryWithPrimary(m)
-					qErr = dbo.QueryRow(query, insertions...).Scan(getScans(m)...)
-				}
-				if qErr != nil {
-					err = qErr
-				}
-			}
-		}
-	} else {
-		err = vErr
-	}
-	return
+func isUpdate(m Cruder) bool {
+	return true
 }
 
-func primaryExists(input interface{}) (ok bool) {
+func primaryExists(input []interface{}) (ok bool) {
 	if input == nil {
 		return
 	}
-	switch input.(type) {
-	case *int:
-		x := *input.(*int)
-		if x != 0 {
-			ok = true
-		}
-	case *int64:
-		x := *input.(*int64)
-		if x != 0 {
-			ok = true
-		}
-	case *int32:
-		x := *input.(*int32)
-		if x != 0 {
-			ok = true
+	ok = true
+	for _, value := range input {
+		err := validation.Validate(value, validation.Required)
+		if err != nil {
+			ok = false
+			return
 		}
 	}
 	return
