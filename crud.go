@@ -32,23 +32,24 @@ type Crud struct {
 func GetLoadQuery(m Cruder) string {
 	columns := columnNames(m)
 	table := m.TableName()
-	return "SELECT " + columns + " FROM " + table + " WHERE " + getSqlPrimary(m) + " ;"
+	sql, _ := getSqlPrimary(m, 0)
+	return "SELECT " + columns + " FROM " + table + " WHERE " + sql + " ;"
 }
 
-func getSqlPrimary(m Cruder) string {
-	cnt := 0
-	sql := ""
+func getSqlPrimary(m Cruder, cnt int) (sql string, count int) {
+	count = cnt
+	sql = ""
 	nms, _ := m.PrimaryKey()
 	for key, value := range nms {
 		nm := value
-		cnt++
+		count++
 		if key == 0 {
-			sql += " " + nm + " = " + fmt.Sprintf("$%v", cnt) + " "
+			sql += " " + nm + " = " + fmt.Sprintf("$%v", count) + " "
 		} else {
-			sql += " and " + nm + " = " + fmt.Sprintf("$%v", cnt) + " "
+			sql += " and " + nm + " = " + fmt.Sprintf("$%v", count) + " "
 		}
 	}
-	return sql
+	return
 }
 
 func columnNames(m Cruder) string {
@@ -129,7 +130,8 @@ func Load(dbo DSLer, m Cruder) (find bool, err error) {
 
 // SQL delete Query
 func getDeleteQuery(m Cruder) string {
-	return "DELETE FROM " + m.TableName() + " WHERE " + getSqlPrimary(m) + " ;"
+	sql, _ := getSqlPrimary(m, 0)
+	return "DELETE FROM " + m.TableName() + " WHERE " + sql + " ;"
 }
 
 // Delete method
@@ -142,16 +144,18 @@ func Delete(dbo DSLer, m Cruder) error {
 // SQL upsert Query
 func getUpdateQuery(m Cruder) (query string, insertions []interface{}) {
 	cols, insertions := insertionColumns(m)
+	iStrt := len(cols)
+	sqlPrm, _ := getSqlPrimary(m, iStrt)
 	updateCols := ""
 	for i, colname := range cols {
-		updateCols = updateCols + " " + colname + " = $" + strconv.Itoa(i+2)
+		updateCols = updateCols + " " + colname + " = $" + strconv.Itoa(i+1+iStrt)
 		if i < (len(cols) - 1) {
 			updateCols = updateCols + ", "
 		}
 	}
 
 	query = `UPDATE ` + m.TableName() + ` SET ` + updateCols + `
-		WHERE ` + getSqlPrimary(m) + ` 
+		WHERE ` + sqlPrm + ` 
 		RETURNING ` + columnNames(m) + `;`
 	return
 }
