@@ -12,7 +12,7 @@ import (
 //ActiveRecord analog
 type Cruder interface {
 	Columns() (names []string, attributeLinks []interface{})
-	Primarykey() (names []string, attributeLinks []interface{})
+	PrimaryKey() (names []string, attributeLinks []interface{})
 	Sequences() (names []string, attributeLinks []interface{})
 	TableName() string
 	Validate() (err error)
@@ -38,7 +38,7 @@ func GetLoadQuery(m Cruder) string {
 func getSqlPrimary(m Cruder) string {
 	cnt := 0
 	sql := ""
-	nms, _ := m.Primarykey()
+	nms, _ := m.PrimaryKey()
 	for key, value := range nms {
 		nm := value
 		cnt++
@@ -53,7 +53,7 @@ func getSqlPrimary(m Cruder) string {
 
 func columnNames(m Cruder) string {
 	names := make([]string, 0)
-	primary, _ := m.Primarykey()
+	primary, _ := m.PrimaryKey()
 	names = append(names, primary...)
 	nms, _ := m.Columns()
 	names = append(names, nms...)
@@ -61,7 +61,7 @@ func columnNames(m Cruder) string {
 }
 
 func scans(m Cruder) (values []interface{}) {
-	_, attributeLink := m.Primarykey()
+	_, attributeLink := m.PrimaryKey()
 	values = append(values, attributeLink)
 	_, attributeLinks := m.Columns()
 	values = append(values, attributeLinks...)
@@ -69,7 +69,7 @@ func scans(m Cruder) (values []interface{}) {
 }
 
 func insertionColumns(m Cruder) (names []string, attributeLinks []interface{}) {
-	prNames, prLinks := m.Primarykey()
+	prNames, prLinks := m.PrimaryKey()
 	for key, value := range prNames {
 		if !inSequense(m, value) {
 			nm := value
@@ -102,7 +102,7 @@ func parse(rows *sql.Rows, m Cruder) (err error) {
 
 // Load model
 func Load(dbo DSLer, m Cruder) (find bool, err error) {
-	_, idlinks := m.Primarykey()
+	_, idlinks := m.PrimaryKey()
 	if primaryExists(idlinks) {
 		var iterator *sql.Rows
 		iterator, errQuery := dbo.Query(GetLoadQuery(m), idlinks...)
@@ -134,7 +134,7 @@ func getDeleteQuery(m Cruder) string {
 
 // Delete method
 func Delete(dbo DSLer, m Cruder) error {
-	_, idlinks := m.Primarykey()
+	_, idlinks := m.PrimaryKey()
 	_, err := dbo.Exec(getDeleteQuery(m), idlinks...)
 	return err
 }
