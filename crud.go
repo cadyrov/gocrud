@@ -62,7 +62,7 @@ func columnNames(m Cruder) string {
 
 func scans(m Cruder) (values []interface{}) {
 	_, attributeLink := m.PrimaryKey()
-	values = append(values, attributeLink)
+	values = append(values, attributeLink...)
 	_, attributeLinks := m.Columns()
 	values = append(values, attributeLinks...)
 	return
