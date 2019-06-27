@@ -181,8 +181,9 @@ func getSaveQuery(m Cruder) (query string, insertions []interface{}) {
 
 //Model saver method
 func Save(ds DSLer, m Cruder) (err error) {
-	ok, err := isUpdate(m)
-	if err != nil {
+	ok, errs := isUpdate(m)
+	if errs != nil {
+		err = errs
 		return
 	}
 	if ok {
