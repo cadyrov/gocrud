@@ -163,22 +163,29 @@ func getUpdateQuery(m Cruder) (query string, insertions []interface{}) {
 }
 
 func getInsertOnConflictQuery(m Cruder) (query string, insertions []interface{}) {
-	_, attr := m.PrimaryKey()
-	insertions = append(insertions, attr...)
-	cols, ins := insertionColumns(m)
-	insertions = append(insertions, ins...)
-	sqlPrm, iStrt := getSqlPrimary(m, 0)
+	names, insertions := insertionColumns(m)
+	columns := strings.Join(names, ",")
+	params := ""
+	for i, _ := range names {
+		params = params + " $" + strconv.Itoa(i+1)
+		if i < (len(names) - 1) {
+			params = params + ", "
+		}
+	}
+
 	updateCols := ""
-	for i, colname := range cols {
-		updateCols = updateCols + " " + colname + " = $" + strconv.Itoa(i+1+iStrt)
-		if i < (len(cols) - 1) {
+	for i, colname := range names {
+		updateCols = updateCols + " " + colname + " = $" + strconv.Itoa(i+1)
+		if i < (len(names) - 1) {
 			updateCols = updateCols + ", "
 		}
 	}
 
-	query = `INSERT ON CONFLICT UPDATE ` + m.TableName() + ` SET ` + updateCols + `
-		WHERE ` + sqlPrm + ` 
-		RETURNING ` + columnNames(m) + `;`
+	query = `INSERT INTO ` + m.TableName() + ` (` + columns + `) VALUES (` + params + `)
+	RETURNING ` + columnNames(m) + `
+	ON CONFLICT
+	DO UPDATE SET
+	` + updateCols + `;`
 	return
 }
 
