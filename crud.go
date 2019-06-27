@@ -180,9 +180,10 @@ func getInsertOnConflictQuery(m Cruder) (query string, insertions []interface{})
 			updateCols = updateCols + ", "
 		}
 	}
-
+	pnames, _ := m.PrimaryKey()
+	onconf := strings.Join(pnames, ",")
 	query = `INSERT INTO ` + m.TableName() + ` (` + columns + `) VALUES (` + params + `)
-	ON CONFLICT
+	ON CONFLICT (` + onconf + `)
 	DO UPDATE SET
 	` + updateCols + `
 	RETURNING ` + columnNames(m) + `
