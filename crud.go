@@ -181,9 +181,8 @@ func getSaveQuery(m Cruder) (query string, insertions []interface{}) {
 
 //Model saver method
 func Save(ds DSLer, m Cruder) (err error) {
-	ok, errs := isUpdate(m)
-	if errs != nil {
-		err = errs
+	ok, err := isUpdate(m)
+	if err != nil {
 		return
 	}
 	if ok {
@@ -218,7 +217,7 @@ func isUpdate(m Cruder) (ok bool,err error) {
 		return
 	}
 	for _, value := range attrLink {
-		err := validation.Validate(value, validation.Required)
+		err = validation.Validate(value, validation.Required)
 		if err != nil {
 			ok = false
 			return
