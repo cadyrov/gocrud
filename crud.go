@@ -141,7 +141,7 @@ func Delete(dbo DSLer, m Cruder) error {
 	return err
 }
 
-// SQL upsert Query
+// SQL update Query
 func getUpdateQuery(m Cruder) (query string, insertions []interface{}) {
 	_, attr := m.PrimaryKey()
 	insertions = append(insertions, attr...)
@@ -157,6 +157,26 @@ func getUpdateQuery(m Cruder) (query string, insertions []interface{}) {
 	}
 
 	query = `UPDATE ` + m.TableName() + ` SET ` + updateCols + `
+		WHERE ` + sqlPrm + ` 
+		RETURNING ` + columnNames(m) + `;`
+	return
+}
+
+func getInsertOnConflictQuery(m Cruder) (query string, insertions []interface{}) {
+	_, attr := m.PrimaryKey()
+	insertions = append(insertions, attr...)
+	cols, ins := insertionColumns(m)
+	insertions = append(insertions, ins...)
+	sqlPrm, iStrt := getSqlPrimary(m, 0)
+	updateCols := ""
+	for i, colname := range cols {
+		updateCols = updateCols + " " + colname + " = $" + strconv.Itoa(i+1+iStrt)
+		if i < (len(cols) - 1) {
+			updateCols = updateCols + ", "
+		}
+	}
+
+	query = `INSERT ON CONFLICT UPDATE ` + m.TableName() + ` SET ` + updateCols + `
 		WHERE ` + sqlPrm + ` 
 		RETURNING ` + columnNames(m) + `;`
 	return
@@ -181,19 +201,19 @@ func getSaveQuery(m Cruder) (query string, insertions []interface{}) {
 
 //Model saver method
 func Save(ds DSLer, m Cruder) (err error) {
-	ok, err := isUpdate(m)
-	if err != nil {
-		return
-	}
-	if ok {
-		err = Update(ds,m)
+	_, attrLink := m.Sequences()
+	ok:= isUpdate(m)
+	if len(attrLink) == 0 {
+		err = insertOnConflict(ds,m)
+	} else if ok {
+		err = update(ds,m)
 	} else {
-		err = Create(ds,m)
+		err = create(ds,m)
 	}
 	return
 }
 
-func Create(ds DSLer, m Cruder) (err error) {
+func create(ds DSLer, m Cruder) (err error) {
 	if err = m.Validate(); err == nil {
 		query, insertions := getSaveQuery(m)
 		err = ds.QueryRow(query, insertions...).Scan(scans(m)...)
@@ -201,7 +221,7 @@ func Create(ds DSLer, m Cruder) (err error) {
 	return
 }
 
-func Update(ds DSLer, m Cruder) (err error) {
+func update(ds DSLer, m Cruder) (err error) {
 	if err = m.Validate(); err == nil {
 		query, insertions := getUpdateQuery(m)
 		err = ds.QueryRow(query, insertions...).Scan(scans(m)...)
@@ -209,15 +229,22 @@ func Update(ds DSLer, m Cruder) (err error) {
 	return
 }
 
+func insertOnConflict(ds DSLer, m Cruder) (err error) {
+	if err = m.Validate(); err == nil {
+		query, insertions := getInsertOnConflictQuery(m)
+		err = ds.QueryRow(query, insertions...).Scan(scans(m)...)
+	}
+	return
+}
 
-func isUpdate(m Cruder) (ok bool,err error) {
+
+func isUpdate(m Cruder) (ok bool) {
 	_, attrLink := m.Sequences()
 	if len(attrLink) == 0 {
-		err = errors.New("without sequence in model you mast use Create or Update method of crud")
 		return
 	}
 	for _, value := range attrLink {
-		err = validation.Validate(value, validation.Required)
+		err := validation.Validate(value, validation.Required)
 		if err != nil {
 			ok = false
 			return
