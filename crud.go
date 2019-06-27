@@ -182,10 +182,11 @@ func getInsertOnConflictQuery(m Cruder) (query string, insertions []interface{})
 	}
 
 	query = `INSERT INTO ` + m.TableName() + ` (` + columns + `) VALUES (` + params + `)
-	RETURNING ` + columnNames(m) + `
 	ON CONFLICT
 	DO UPDATE SET
-	` + updateCols + `;`
+	` + updateCols + `
+	RETURNING ` + columnNames(m) + `
+	;`
 	return
 }
 
