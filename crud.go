@@ -181,24 +181,30 @@ func getSaveQuery(m Cruder) (query string, insertions []interface{}) {
 
 //Model saver method
 func Save(ds DSLer, m Cruder) (err error) {
-	vErr := m.Validate()
-	if vErr == nil {
-		var qErr error
-		if isUpdate(m) {
-			query, insertions := getUpdateQuery(m)
-			qErr = ds.QueryRow(query, insertions...).Scan(scans(m)...)
-		} else {
-			query, insertions := getSaveQuery(m)
-			qErr = ds.QueryRow(query, insertions...).Scan(scans(m)...)
-		}
-		if qErr != nil {
-			err = qErr
-		}
+	if isUpdate(m) {
+		err = Update(ds,m)
 	} else {
-		err = vErr
+		err = Create(ds,m)
 	}
 	return
 }
+
+func Create(ds DSLer, m Cruder) (err error) {
+	if err = m.Validate(); err == nil {
+		query, insertions := getSaveQuery(m)
+		err = ds.QueryRow(query, insertions...).Scan(scans(m)...)
+	}
+	return
+}
+
+func Update(ds DSLer, m Cruder) (err error) {
+	if err = m.Validate(); err == nil {
+		query, insertions := getUpdateQuery(m)
+		err = ds.QueryRow(query, insertions...).Scan(scans(m)...)
+	}
+	return
+}
+
 
 func isUpdate(m Cruder) (ok bool) {
 	_, attrLink := m.Sequences()
