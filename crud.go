@@ -181,7 +181,11 @@ func getSaveQuery(m Cruder) (query string, insertions []interface{}) {
 
 //Model saver method
 func Save(ds DSLer, m Cruder) (err error) {
-	if isUpdate(m) {
+	ok, err := isUpdate(m)
+	if err != nil {
+		return
+	}
+	if ok {
 		err = Update(ds,m)
 	} else {
 		err = Create(ds,m)
@@ -206,9 +210,10 @@ func Update(ds DSLer, m Cruder) (err error) {
 }
 
 
-func isUpdate(m Cruder) (ok bool) {
+func isUpdate(m Cruder) (ok bool,err error) {
 	_, attrLink := m.Sequences()
 	if len(attrLink) == 0 {
+		err = errors.New("without sequence in model you mast use Create or Update method of crud")
 		return
 	}
 	for _, value := range attrLink {
@@ -218,7 +223,8 @@ func isUpdate(m Cruder) (ok bool) {
 			return
 		}
 	}
-	return true
+	ok = true
+	return
 }
 
 func primaryExists(input []interface{}) (ok bool) {
