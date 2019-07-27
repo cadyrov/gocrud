@@ -351,8 +351,8 @@ func (m *{{ .Model }}) Save(d crud.DSLer) error {
 func getModelSearcher(model string, table string, columns Columns) (bytes.Buffer, error) {
 	t := `// Search by filer
 func (m *{{ .Model }}) Search (q crud.DSLer, filter godb.SqlFilter) ([]{{ .Model }}, {{ $index := 0 }}{{ range $key, $column := .Columns }}{{ if $column.IsPrimaryKey }}{{ if $index }}, {{ end }}{{ $index = inc $index }}[]{{ $column.ModelType }}{{ end }}{{ end }}, error) {
-	nm,_ := (&{{ .Model }}{}).Columns()
-	names, _ := (&{{ .Model }}{}).PrimaryKey()
+	nm,_ := m.Columns()
+	names, _ := m.PrimaryKey()
 	names = append(names, nm...)
 	query := fmt.Sprintf("SELECT " + strings.Join(names, ",") + " FROM {{ .Table }} %s", filter.GetWithWhere())
 	rows, err := q.Query(query, filter.GetArguments()...)
