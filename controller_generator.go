@@ -1,4 +1,4 @@
-package gocrud
+package crud
 
 import (
 	"bytes"
