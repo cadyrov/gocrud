@@ -188,7 +188,7 @@ func controllerRead(modelName string) (buf bytes.Buffer, err error) {
 	func (f *{{.Import}}Form) Get() (result *{{.Import}}Form, iError rest.IError) {
 		db := base.App.GetBaseDb()
 		if _, err := f.Load(db); err != nil {
-			iError = rest.NewRestError(err.Error(), http.StatusInternalServerError)
+			iError = RestIError(err, "", http.StatusInternalServerError)
 		}
 		return
 	}
@@ -209,7 +209,7 @@ func controllerCreate(modelName string) (buf bytes.Buffer, err error) {
 		result = f
 		tx, err := db.Begin()
 		if err != nil {
-			iError = rest.NewRestError(err.Error(), http.StatusInternalServerError)
+			iError = RestIError(err, "", http.StatusInternalServerError)
 			return
 		}
 		if iError = f.save(tx); iError == nil {
@@ -239,7 +239,7 @@ func controllerFind(modelName string) (buf bytes.Buffer, err error) {
 		md := (&models.{{.Import}}{})
 		res, _, err := md.Search(db, filter)
 		if err != nil {
-			iError = rest.NewRestError(err.Error(), http.StatusInternalServerError)
+			iError = RestIError(err, "", http.StatusInternalServerError)
 			return
 		}
 		for key := range res {
@@ -266,7 +266,7 @@ func controllerUpdate(modelName string) (buf bytes.Buffer, err error) {
 		result = f
 		tx, err := db.Begin()
 		if err != nil {
-			iError = rest.NewRestError(err.Error(), http.StatusInternalServerError)
+			iError = RestIError(err, "", http.StatusInternalServerError)
 			return
 		}
 		if iError = f.primaryExistsError(tx); iError != nil {
@@ -295,7 +295,7 @@ func controllerDelete(modelName string) (buf bytes.Buffer, err error) {
 		db := base.App.GetBaseDb()
 		tx, err := db.Begin()
 		if err != nil {
-			iError = rest.NewRestError(err.Error(), http.StatusInternalServerError)
+			iError = RestIError(err, "", http.StatusInternalServerError)
 			return
 		}
 		if iError = f.primaryExistsError(tx); iError != nil {
@@ -303,7 +303,7 @@ func controllerDelete(modelName string) (buf bytes.Buffer, err error) {
 		}
 		if err = f.Delete(tx); err != nil {
 			tx.Rollback()
-			iError = rest.NewRestError(err.Error(), http.StatusInternalServerError)
+			iError = RestIError(err, "", http.StatusInternalServerError)
 			return
 		}
 		tx.Commit()
@@ -321,35 +321,35 @@ func controllerDelete(modelName string) (buf bytes.Buffer, err error) {
 
 func controllerValidate(modelName string) (buf bytes.Buffer, err error) {
 	t := `
-	func (f *{{.Import}}Form) primaryExistsError(tx *godb.SqlTx) (iError rest.IError){
+	func (f *{{.Import}}Form) primaryExistsError(ds crud.DSLer) (iError rest.IError){
 		md := *f.{{.Import}}
 		model := &md
-		if ok, err := model.Load(tx); !ok {
+		if ok, err := model.Load(ds); !ok {
 			_, pk := model.PrimaryKey()
 			id := fmt.Sprintf("%s", pk)
 			if err != nil {
-				iError = rest.NewRestError(err.Error(), http.StatusInternalServerError)
+				iError = RestIError(err, "", http.StatusInternalServerError)
 				return
 			}
-			iError = rest.NewRestError("Record with id " + id + " not found", http.StatusBadRequest)
+			iError = RestIError(nil, "Record with id " + id + " not found", http.StatusBadRequest)
 			return
 		}
 		return
 	}
 
-	func (f *{{.Import}}Form) save(tx *godb.SqlTx) (iError rest.IError){
-		if iError = f.saveValidate(tx); iError != nil {
+	func (f *{{.Import}}Form) save(ds crud.DSLer) (iError rest.IError){
+		if iError = f.saveValidate(ds); iError != nil {
 			return
 		}
-		err := f.Save(tx)
+		err := f.Save(ds)
 		if err != nil {
-			iError = rest.NewRestError(err.Error(), http.StatusInternalServerError)
+			iError = RestIError(err, "", http.StatusInternalServerError)
 			return
 		}
 		return
 	}
 
-	func (f *{{.Import}}Form) saveValidate(tx *godb.SqlTx) (iError rest.IError) {
+	func (f *{{.Import}}Form) saveValidate(ds crud.DSLer) (iError rest.IError) {
 		return
 	}
 	`
