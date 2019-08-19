@@ -130,11 +130,11 @@ func controllerHeader(modelPath string) (buf bytes.Buffer, err error) {
 	}
 	imports = append(imports, baseImports...)
 	t := `
-	package core
-	import (
-		{{ range $key, $import := .Imports }}{{ $import }}
-		{{ end }})
-	`
+package core
+import (
+	{{ range $key, $import := .Imports }}{{ $import }}
+	{{ end }})
+`
 
 	tml := template.Must(template.New("").Parse(t))
 	err = tml.Execute(&buf, struct {
@@ -147,14 +147,14 @@ func controllerHeader(modelPath string) (buf bytes.Buffer, err error) {
 
 func controllerForm(modelName string) (buf bytes.Buffer, err error) {
 	t := `
-	type {{.Import}}Form struct {
-		*models.{{.Import}}
-	}
+type {{.Import}}Form struct {
+	*models.{{.Import}}
+}
 
-	type {{.Import}}SearchForm struct {
-		Id int64 
-		Name string
-	}
+type {{.Import}}SearchForm struct {
+	Id int64 
+	Name string
+}
 	`
 	tml := template.Must(template.New("").Parse(t))
 	err = tml.Execute(&buf, struct {
@@ -167,7 +167,7 @@ func controllerForm(modelName string) (buf bytes.Buffer, err error) {
 
 func controllerReturnedSlice(modelName string) (buf bytes.Buffer, err error) {
 	t := `
-	type {{.Import}}ResultSet []{{.Import}}Form
+type {{.Import}}ResultSet []{{.Import}}Form
 	`
 	tml := template.Must(template.New("").Parse(t))
 	err = tml.Execute(&buf, struct {
@@ -180,13 +180,15 @@ func controllerReturnedSlice(modelName string) (buf bytes.Buffer, err error) {
 
 func controllerRead(modelName string) (buf bytes.Buffer, err error) {
 	t := `
-	func (f *{{.Import}}Form) Get() (result *{{.Import}}Form, iError rest.IError) {
-		db := base.App.GetBaseDb()
-		if _, err := f.Load(db); err != nil {
-			iError = RestIError(err, "", http.StatusInternalServerError)
-		}
-		return
+//load {{.Import}}
+func (f *{{.Import}}Form) Load() (result *{{.Import}}Form, iError rest.IError) {
+	result = f
+	db := base.App.GetBaseDb()
+	if _, err := f.{{.Import}}.Load(db); err != nil {
+		iError = RestIError(err, "Load {{.Import}} error:", http.StatusInternalServerError)
 	}
+	return
+}
 	`
 	tml := template.Must(template.New("").Parse(t))
 	err = tml.Execute(&buf, struct {
@@ -199,21 +201,22 @@ func controllerRead(modelName string) (buf bytes.Buffer, err error) {
 
 func controllerCreate(modelName string) (buf bytes.Buffer, err error) {
 	t := `
-	func (f *{{.Import}}Form) Create() (result *{{.Import}}Form, iError rest.IError) {
-		db := base.App.GetBaseDb()
-		result = f
-		tx, err := db.Begin()
-		if err != nil {
-			iError = RestIError(err, "", http.StatusInternalServerError)
-			return
-		}
-		if iError = f.save(tx); iError == nil {
-			tx.Commit()
-			return
-		}
-		tx.Rollback()
+//create {{.Import}}
+func (f *{{.Import}}Form) Create() (result *{{.Import}}Form, iError rest.IError) {
+	db := base.App.GetBaseDb()
+	result = f
+	tx, err := db.Begin()
+	if err != nil {
+	iError = RestIError(err, "Create {{.Import}} error:", http.StatusInternalServerError)
+	return
+	}
+	if iError = f.save(tx); iError == nil {
+		tx.Commit()
 		return
 	}
+	tx.Rollback()
+	return
+}
 	`
 	tml := template.Must(template.New("").Parse(t))
 	err = tml.Execute(&buf, struct {
@@ -226,23 +229,24 @@ func controllerCreate(modelName string) (buf bytes.Buffer, err error) {
 
 func controllerFind(modelName string) (buf bytes.Buffer, err error) {
 	t := `
-	func (f *{{.Import}}SearchForm) Find() (result {{.Import}}ResultSet, iError rest.IError) {
-		db := base.App.GetBaseDb()
-		filter := godb.SqlFilter{}
-		filter.AddFiledFilter("name", "=", f.Name)
-		filter.AddInFilter("id", int64ToIArr([]int64{f.Id}))
-		md := (&models.{{.Import}}{})
-		res, _, err := md.Search(db, filter)
-		if err != nil {
-			iError = RestIError(err, "", http.StatusInternalServerError)
-			return
-		}
-		for key := range res {
-			md := res[key]
-			result = append(result, {{.Import}}Form{&md})
-		}
+//find {{.Import}}
+func (f *{{.Import}}SearchForm) Find() (result {{.Import}}ResultSet, iError rest.IError) {
+	db := base.App.GetBaseDb()
+	filter := godb.SqlFilter{}
+	filter.AddFiledFilter("name", "=", f.Name)
+	filter.AddInFilter("id", int64ToIArr([]int64{f.Id}))
+	md := (&models.{{.Import}}{})
+	res, _, err := md.Search(db, filter)
+	if err != nil {
+		iError = RestIError(err, "Find {{.Import}} error:", http.StatusInternalServerError)
 		return
 	}
+	for key := range res {
+		md := res[key]
+		result = append(result, {{.Import}}Form{&md})
+	}
+	return
+}
 	`
 	tml := template.Must(template.New("").Parse(t))
 	err = tml.Execute(&buf, struct {
@@ -255,24 +259,25 @@ func controllerFind(modelName string) (buf bytes.Buffer, err error) {
 
 func controllerUpdate(modelName string) (buf bytes.Buffer, err error) {
 	t := `
-	func (f *{{.Import}}Form) Update() (result *{{.Import}}Form, iError rest.IError) {
-		db := base.App.GetBaseDb()
-		result = f
-		tx, err := db.Begin()
-		if err != nil {
-			iError = RestIError(err, "", http.StatusInternalServerError)
-			return
-		}
-		if iError = f.primaryExistsError(tx); iError != nil {
-			return
-		}
-		if iError = f.save(tx); iError == nil {
-			tx.Commit()
-			return
-		}
-		tx.Rollback()
+//update {{.Import}}
+func (f *{{.Import}}Form) Update() (result *{{.Import}}Form, iError rest.IError) {
+	db := base.App.GetBaseDb()
+	result = f
+	tx, err := db.Begin()
+	if err != nil {
+		iError = RestIError(err, "Update {{.Import}} error:", http.StatusInternalServerError)
 		return
 	}
+	if iError = f.primaryExistsError(tx); iError != nil {
+		return
+	}
+	if iError = f.save(tx); iError == nil {
+		tx.Commit()
+		return
+	}
+	tx.Rollback()
+	return
+}
 	`
 	tml := template.Must(template.New("").Parse(t))
 	err = tml.Execute(&buf, struct {
@@ -285,24 +290,25 @@ func controllerUpdate(modelName string) (buf bytes.Buffer, err error) {
 
 func controllerDelete(modelName string) (buf bytes.Buffer, err error) {
 	t := `
-	func (f *{{.Import}}Form) Remove() (iError rest.IError) {
-		db := base.App.GetBaseDb()
-		tx, err := db.Begin()
-		if err != nil {
-			iError = RestIError(err, "", http.StatusInternalServerError)
-			return
-		}
-		if iError = f.primaryExistsError(tx); iError != nil {
-			return
-		}
-		if err = f.Delete(tx); err != nil {
-			tx.Rollback()
-			iError = RestIError(err, "", http.StatusInternalServerError)
-			return
-		}
-		tx.Commit()
+//remove {{.Import}}
+func (f *{{.Import}}Form) Delete() (iError rest.IError) {
+	db := base.App.GetBaseDb()
+	tx, err := db.Begin()
+	if err != nil {
+		iError = RestIError(err, "Delete {{.Import}} error:", http.StatusInternalServerError)
 		return
 	}
+	if iError = f.primaryExistsError(tx); iError != nil {
+		return
+	}
+	if err = f.{{.Import}}.Delete(tx); err != nil {
+		tx.Rollback()
+		iError = RestIError(err, "", http.StatusInternalServerError)
+		return
+	}
+	tx.Commit()
+	return
+}
 	`
 	tml := template.Must(template.New("").Parse(t))
 	err = tml.Execute(&buf, struct {
@@ -315,37 +321,36 @@ func controllerDelete(modelName string) (buf bytes.Buffer, err error) {
 
 func controllerValidate(modelName string) (buf bytes.Buffer, err error) {
 	t := `
-	func (f *{{.Import}}Form) primaryExistsError(ds crud.DSLer) (iError rest.IError){
-		md := *f.{{.Import}}
-		model := &md
-		if ok, err := model.Load(ds); !ok {
-			_, pk := model.PrimaryKey()
-			id := fmt.Sprintf("%s", pk)
-			if err != nil {
-				iError = RestIError(err, "", http.StatusInternalServerError)
-				return
-			}
-			iError = RestIError(nil, "Record with id " + id + " not found", http.StatusBadRequest)
-			return
-		}
-		return
-	}
-
-	func (f *{{.Import}}Form) save(ds crud.DSLer) (iError rest.IError){
-		if iError = f.saveValidate(ds); iError != nil {
-			return
-		}
-		err := f.Save(ds)
+func (f *{{.Import}}Form) primaryExistsError(ds crud.DSLer) (iError rest.IError){
+	md := *f.{{.Import}}
+	if ok, err := (&md).Load(ds); !ok {
+		_, pk := (&md).PrimaryKey()
+		id := fmt.Sprintf("%s", pk)
 		if err != nil {
-			iError = RestIError(err, "", http.StatusInternalServerError)
+			iError = RestIError(err, "Find {{.Import}} ", http.StatusInternalServerError)
 			return
 		}
+		iError = RestIError(nil, "Record {{.Import}} with id " + id + " not found ", http.StatusBadRequest)
 		return
-	}
+		}
+	return
+}
 
-	func (f *{{.Import}}Form) saveValidate(ds crud.DSLer) (iError rest.IError) {
+func (f *{{.Import}}Form) save(ds crud.DSLer) (iError rest.IError){
+	if iError = f.saveValidate(ds); iError != nil {
 		return
 	}
+	err := f.Save(ds)
+	if err != nil {
+		iError = RestIError(err, " operation save error: ", http.StatusInternalServerError)
+		return
+	}
+	return
+}
+
+func (f *{{.Import}}Form) saveValidate(ds crud.DSLer) (iError rest.IError) {
+	return
+}
 	`
 	tml := template.Must(template.New("").Parse(t))
 	err = tml.Execute(&buf, struct {
