@@ -8,7 +8,7 @@ import (
 
 type Modeler interface {
 	Validate() (err error)
-	Load(dbo crud.DSLer) (bool, error)
+	Load(dbo DSLer) (bool, error)
 }
 
 type SearchMeta struct {
@@ -17,7 +17,7 @@ type SearchMeta struct {
 	Total  int `json:"total"`
 }
 
-func validateOnExisits(m Modeler, db crud.DSLer, nameStruct string, failMessage string) rest.IError {
+func validateOnExisits(m Modeler, db DSLer, nameStruct string, failMessage string) rest.IError {
 	ok, err := m.Load(db)
 	if err != nil {
 		return RestIError(err, nameStruct, http.StatusInternalServerError)
