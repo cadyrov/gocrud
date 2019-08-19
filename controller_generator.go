@@ -8,10 +8,10 @@ import (
 	"text/template"
 )
 
-func MakeController(path string, modelPath string,  modelName string) (err error){
+func MakeController(path string, modelPath string, modelName string) (err error) {
 	upperModel := strings.Title(modelName)
 	// create file
-	file, pth, err := CreateControllerFile(path, modelName)
+	file, _, err := CreateControllerFile(path, modelName)
 	if err != nil {
 		return
 	}
@@ -22,7 +22,7 @@ func MakeController(path string, modelPath string,  modelName string) (err error
 	if err != nil {
 		return
 	}
-	if _, errs := file.Write(buf.Bytes()); errs != nil{
+	if _, errs := file.Write(buf.Bytes()); errs != nil {
 		err = errs
 		return
 	}
@@ -31,7 +31,7 @@ func MakeController(path string, modelPath string,  modelName string) (err error
 	if err != nil {
 		return
 	}
-	if _, errs := file.Write(buf.Bytes()); errs != nil{
+	if _, errs := file.Write(buf.Bytes()); errs != nil {
 		err = errs
 		return
 	}
@@ -41,7 +41,7 @@ func MakeController(path string, modelPath string,  modelName string) (err error
 	if err != nil {
 		return
 	}
-	if _, errs := file.Write(buf.Bytes()); errs != nil{
+	if _, errs := file.Write(buf.Bytes()); errs != nil {
 		err = errs
 		return
 	}
@@ -50,7 +50,7 @@ func MakeController(path string, modelPath string,  modelName string) (err error
 	if err != nil {
 		return
 	}
-	if _, errs := file.Write(buf.Bytes()); errs != nil{
+	if _, errs := file.Write(buf.Bytes()); errs != nil {
 		err = errs
 		return
 	}
@@ -60,7 +60,7 @@ func MakeController(path string, modelPath string,  modelName string) (err error
 	if err != nil {
 		return
 	}
-	if _, errs := file.Write(buf.Bytes()); errs != nil{
+	if _, errs := file.Write(buf.Bytes()); errs != nil {
 		err = errs
 		return
 	}
@@ -70,7 +70,7 @@ func MakeController(path string, modelPath string,  modelName string) (err error
 	if err != nil {
 		return
 	}
-	if _, errs := file.Write(buf.Bytes()); errs != nil{
+	if _, errs := file.Write(buf.Bytes()); errs != nil {
 		err = errs
 		return
 	}
@@ -80,7 +80,7 @@ func MakeController(path string, modelPath string,  modelName string) (err error
 	if err != nil {
 		return
 	}
-	if _, errs := file.Write(buf.Bytes()); errs != nil{
+	if _, errs := file.Write(buf.Bytes()); errs != nil {
 		err = errs
 		return
 	}
@@ -89,7 +89,7 @@ func MakeController(path string, modelPath string,  modelName string) (err error
 	if err != nil {
 		return
 	}
-	if _, errs := file.Write(buf.Bytes()); errs != nil{
+	if _, errs := file.Write(buf.Bytes()); errs != nil {
 		err = errs
 		return
 	}
@@ -98,14 +98,13 @@ func MakeController(path string, modelPath string,  modelName string) (err error
 	if err != nil {
 		return
 	}
-	if _, errs := file.Write(buf.Bytes()); errs != nil{
+	if _, errs := file.Write(buf.Bytes()); errs != nil {
 		err = errs
 		return
 	}
 	// write to file
 	return
 }
-
 
 // Create file in os
 func CreateControllerFile(path string, fileName string) (*os.File, string, error) {
@@ -121,7 +120,6 @@ func CreateControllerFile(path string, fileName string) (*os.File, string, error
 	}
 	return f, filePath, nil
 }
-
 
 func controllerHeader(modelPath string) (buf bytes.Buffer, err error) {
 	imports := []string{}
@@ -254,7 +252,6 @@ func controllerFind(modelName string) (buf bytes.Buffer, err error) {
 	})
 	return
 }
-
 
 func controllerUpdate(modelName string) (buf bytes.Buffer, err error) {
 	t := `
