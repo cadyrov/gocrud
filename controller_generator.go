@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 	"text/template"
-	"tie/app/base"
 )
 
 func MakeController(path string, modelPath string,  modelName string) (err error){
@@ -103,8 +102,6 @@ func MakeController(path string, modelPath string,  modelName string) (err error
 		err = errs
 		return
 	}
-
-	base.App.GetLogger().Info(pth)
 	// write to file
 	return
 }
