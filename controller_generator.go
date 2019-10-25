@@ -124,7 +124,7 @@ func CreateControllerFile(path string, fileName string) (*os.File, string, error
 func controllerHeader(modelPath string) (buf bytes.Buffer, err error) {
 	imports := []string{}
 	baseImports := []string{
-		`"github.com/dimonrus/rest"`,
+		`"github.com/dimonrus/porterr"`,
 		`"fmt"`,
 		`"` + modelPath + `"`,
 	}
@@ -181,11 +181,12 @@ type {{.Import}}ResultSet []{{.Import}}Form
 func controllerRead(modelName string) (buf bytes.Buffer, err error) {
 	t := `
 //load {{.Import}}
-func (f *{{.Import}}Form) Load() (result *{{.Import}}Form, iError rest.IError) {
+func (f *{{.Import}}Form) Load() (result *{{.Import}}Form, e porterr.IError) {
 	result = f
 	db := base.App.GetBaseDb()
 	if _, err := f.{{.Import}}.Load(db); err != nil {
-		iError = RestIError(err, "Load {{.Import}} error:", http.StatusInternalServerError)
+		e = porterr.New(porterr.PortErrorDatabaseQuery, "Load {{.Import}} error: " + err.Error())
+		return
 	}
 	return
 }
@@ -202,15 +203,15 @@ func (f *{{.Import}}Form) Load() (result *{{.Import}}Form, iError rest.IError) {
 func controllerCreate(modelName string) (buf bytes.Buffer, err error) {
 	t := `
 //create {{.Import}}
-func (f *{{.Import}}Form) Create() (result *{{.Import}}Form, iError rest.IError) {
+func (f *{{.Import}}Form) Create() (result *{{.Import}}Form, e porterr.IError) {
 	db := base.App.GetBaseDb()
 	result = f
 	tx, err := db.Begin()
 	if err != nil {
-	iError = RestIError(err, "Create {{.Import}} error:", http.StatusInternalServerError)
-	return
+		e = porterr.New(porterr.PortErrorDatabaseQuery, "Create {{.Import}} error: " + err.Error())
+		return
 	}
-	if iError = f.save(tx); iError == nil {
+	if e = f.save(tx); e == nil {
 		tx.Commit()
 		return
 	}
@@ -230,7 +231,7 @@ func (f *{{.Import}}Form) Create() (result *{{.Import}}Form, iError rest.IError)
 func controllerFind(modelName string) (buf bytes.Buffer, err error) {
 	t := `
 //find {{.Import}}
-func (f *{{.Import}}SearchForm) Find() (result {{.Import}}ResultSet, iError rest.IError) {
+func (f *{{.Import}}SearchForm) Find() (result {{.Import}}ResultSet, e porterr.IError) {
 	db := base.App.GetBaseDb()
 	filter := godb.SqlFilter{}
 	filter.AddFiledFilter("name", "=", f.Name)
@@ -238,7 +239,7 @@ func (f *{{.Import}}SearchForm) Find() (result {{.Import}}ResultSet, iError rest
 	md := (&models.{{.Import}}{})
 	res, _, err := md.Search(db, filter)
 	if err != nil {
-		iError = RestIError(err, "Find {{.Import}} error:", http.StatusInternalServerError)
+		e = porterr.New(porterr.PortErrorDatabaseQuery, "Find {{.Import}} error: " + err.Error())
 		return
 	}
 	for key := range res {
@@ -260,18 +261,18 @@ func (f *{{.Import}}SearchForm) Find() (result {{.Import}}ResultSet, iError rest
 func controllerUpdate(modelName string) (buf bytes.Buffer, err error) {
 	t := `
 //update {{.Import}}
-func (f *{{.Import}}Form) Update() (result *{{.Import}}Form, iError rest.IError) {
+func (f *{{.Import}}Form) Update() (result *{{.Import}}Form, e porterr.IError) {
 	db := base.App.GetBaseDb()
 	result = f
 	tx, err := db.Begin()
 	if err != nil {
-		iError = RestIError(err, "Update {{.Import}} error:", http.StatusInternalServerError)
+		e = porterr.New(porterr.PortErrorDatabaseQuery, "Update {{.Import}} error: " + err.Error())
 		return
 	}
-	if iError = f.primaryExistsError(tx); iError != nil {
+	if e = f.primaryExistsError(tx); e != nil {
 		return
 	}
-	if iError = f.save(tx); iError == nil {
+	if e = f.save(tx); e == nil {
 		tx.Commit()
 		return
 	}
@@ -295,15 +296,15 @@ func (f *{{.Import}}Form) Delete() (iError rest.IError) {
 	db := base.App.GetBaseDb()
 	tx, err := db.Begin()
 	if err != nil {
-		iError = RestIError(err, "Delete {{.Import}} error:", http.StatusInternalServerError)
+		e = porterr.New(porterr.PortErrorDatabaseQuery, "Delete {{.Import}} error: " + err.Error())
 		return
 	}
-	if iError = f.primaryExistsError(tx); iError != nil {
+	if e = f.primaryExistsError(tx); e != nil {
 		return
 	}
 	if err = f.{{.Import}}.Delete(tx); err != nil {
 		tx.Rollback()
-		iError = RestIError(err, "", http.StatusInternalServerError)
+		e = porterr.New(porterr.PortErrorDatabaseQuery, "Delete {{.Import}} error: " + err.Error())
 		return
 	}
 	tx.Commit()
@@ -321,34 +322,34 @@ func (f *{{.Import}}Form) Delete() (iError rest.IError) {
 
 func controllerValidate(modelName string) (buf bytes.Buffer, err error) {
 	t := `
-func (f *{{.Import}}Form) primaryExistsError(ds crud.DSLer) (iError rest.IError){
+func (f *{{.Import}}Form) primaryExistsError(ds crud.DSLer) (e rest.IError){
 	md := *f.{{.Import}}
 	if ok, err := (&md).Load(ds); !ok {
 		_, pk := (&md).PrimaryKey()
 		id := fmt.Sprintf("%s", pk)
 		if err != nil {
-			iError = RestIError(err, "Find {{.Import}} ", http.StatusInternalServerError)
+			e = porterr.New(porterr.PortErrorDatabaseQuery, "Find {{.Import}}  error: " + err.Error())
 			return
 		}
-		iError = RestIError(nil, "Record {{.Import}} with id " + id + " not found ", http.StatusBadRequest)
+		e = porterr.New(porterr.PortErrorRequest, "Record {{.Import}} with id " + id + " not found ").HTTP(http.StatusBadRequest)
 		return
-		}
+	}
 	return
 }
 
-func (f *{{.Import}}Form) save(ds crud.DSLer) (iError rest.IError){
-	if iError = f.saveValidate(ds); iError != nil {
+func (f *{{.Import}}Form) save(ds crud.DSLer) (e rest.IError){
+	if e = f.saveValidate(ds); iError != nil {
 		return
 	}
 	err := f.Save(ds)
 	if err != nil {
-		iError = RestIError(err, " operation save error: ", http.StatusInternalServerError)
+		e = porterr.New(porterr.PortErrorDatabaseQuery, "Record {{.Import}} operation save error: " + err.Error())
 		return
 	}
 	return
 }
 
-func (f *{{.Import}}Form) saveValidate(ds crud.DSLer) (iError rest.IError) {
+func (f *{{.Import}}Form) saveValidate(ds crud.DSLer) (e rest.IError) {
 	return
 }
 	`
