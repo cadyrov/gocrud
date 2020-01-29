@@ -360,7 +360,7 @@ func (m *{{ .Model }}) Search (q crud.DSLer, filter godb.SqlFilter) ([]{{ .Model
 	nm,_ := m.Columns()
 	names, _ := m.PrimaryKey()
 	names = append(names, nm...)
-	query := fmt.Sprintf("SELECT " + strings.Join(names, ",") + " FROM {{ .Table }} %s", filter.GetWithWhere())
+	query := fmt.Sprintf("SELECT " + strings.Join(names, ",") + " FROM {{ .Table }} %s", filter.String())
 	rows, err := q.Query(query, filter.GetArguments()...)
 	{{ range $key, $column := .Columns }}{{ if $column.IsPrimaryKey }}
 	entity{{ $column.ModelName }}s := make([]{{ $column.ModelType }}, 0){{ end }}{{ end }}
